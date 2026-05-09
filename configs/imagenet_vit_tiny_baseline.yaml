@@ -1,0 +1,71 @@
+# configs/imagenet_vit_tiny_baseline.yaml
+
+# === 实验基础信息 ===
+experiment_name: "vit_tiny_baseline"
+mode: "single"           # ViT-Tiny 参数量小，适合单独训练，或者做 Student
+seed: 42
+device: "cuda:0"
+output_dir: "./logs"
+
+# === 数据配置 ===
+data:
+  dataset: "imagenet"    # 对应 datasets.py，会自动找 root/train 和 root/val
+  root: "./data"         # 修改为你的实际 ImageNet 路径
+  img_size: 224          # ViT 标准输入
+  
+  # [显存提示] ViT-Tiny 显存占用比 ResNet18 稍大（因为 Attention 矩阵），
+  # 16G 显存下建议 batch_size: 256 (配合 AMP)
+  # 如果显存充足 (24G+)，可开到 512 或 1024
+  batch_size: 512
+  
+  num_workers: 8         # Windows 防报错建议 4
+  pin_memory: true
+  
+  # ImageNet 训练不需要从训练集切分验证集，直接用官方 Val
+  val_split: 0.0
+  
+  # [关键] ViT 训练必须配合 Label Smoothing
+  label_smoothing: 0.1
+
+# === 模型配置 ===
+model:
+  student: "vit_tiny"    # 确保 models/__init__.py 里注册了 vit_tiny
+  teacher: null
+
+# === 训练策略 (DeiT Recipe) ===
+solver:
+  # [Epoch] ViT 标准是 300，Mixup 需要更久收敛。240 是底线。
+  epochs: 240
+  
+  # [优化器] 必须用 AdamW，SGD 训不动 ViT
+  optimizer: "adamw"
+  
+  # [学习率] Base LR通常为 5e-4 (batch512时)。
+  # 如果 batch=256，建议 lr=2.5e-4 或 5e-4。这里给一个通用强健值。
+  lr: 0.001             # 5e-4
+  
+  # [Weight Decay] ViT 需要较强的正则化
+  weight_decay: 0.05     
+  
+  # [调度器] Cosine + Warmup
+  scheduler: "cosine"
+  warmup_epochs: 20      # ViT 需要较长的热身期 (20甚至50)
+  
+  # [混合精度] ViT 计算密集，AMP 收益巨大
+  amp: true
+  
+  # === 强力数据增强 (Mixup + CutMix) ===
+  # 这种组合是 ViT 训练的标配
+  mixup: 0.8             # Mixup alpha
+  cutmix: 1.0            # CutMix alpha (如果 utils/mixup.py 支持)
+  mixup_prob: 1.0        # 实施概率
+  
+  # [早停] ImageNet 300 epoch 可能会在最后阶段才冲高精度
+  early_stop:
+    patience: 30
+    min_epochs: 200      # 至少跑完 250 轮再考虑停
+    monitor: "val_acc"
+    delta: 0.0
+
+  test_once: true
+  log_interval: 100

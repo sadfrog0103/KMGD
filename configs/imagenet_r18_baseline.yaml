@@ -1,0 +1,70 @@
+# configs/imagenet_r18_baseline2.yaml
+
+# === 实验元数据 ===
+experiment_name: "r18_imagenet_baseline2"
+mode: "single"
+seed: 42
+device: "cuda:0"
+output_dir: "./logs"
+
+# === 数据配置 ===
+data:
+  dataset: "imagenet"
+  root: "./data"
+  img_size: 224
+  
+  # [修改建议] 
+  # 黄金标准是 batch_size: 256. 
+  # 如果你为了速度必须用 512，请保持 512。但如果显存允许，改成 256 精度会更稳。
+  batch_size: 256  # <--- 建议改回 256 以对齐官方标准
+  
+  num_workers: 10
+  pin_memory: true
+  val_split: 0.0
+  
+  label_noise: 0.0
+  label_smoothing: 0.1   # 保持开启，这是现代 Baseline 标配
+
+# === 模型配置 ===
+model:
+  student: "resnet18"
+  teacher: null
+
+# === 训练策略 (Solver) ===
+solver:
+  # [修改 1] 延长训练时间
+  # Cosine 策略在最后阶段下降非常快，90 epoch 有点意犹未尽，120 能稳稳收敛
+  epochs: 100            # <--- 90 -> 120
+  
+  optimizer: "sgd"
+  
+  # [修改 2] 学习率适配
+  # 如果 batch_size=256，请用 0.1 (黄金标准)
+  # 如果 batch_size=512，请用 0.2 (线性缩放)
+  lr: 0.1              # <--- 配合 BS=256 使用。如果用 BS=512，请改回 0.2
+  
+  momentum: 0.9
+  weight_decay: 0.0001
+  
+  scheduler: "cosine"
+  warmup_epochs: 5
+  
+  amp: true
+  
+  # [修改 3] 启用轻量级 Mixup
+  # 0.2 的强度很低，几乎不增加训练难度，但能有效防止过拟合，是从 68% 冲向 70% 的神器
+  mixup: 0.0             # <--- 0.0 -> 0.2
+  
+  early_stop:
+    patience: 20
+    min_epochs: 90      # 至少跑完 90 轮再考虑早停
+    monitor: "val_acc"
+    delta: 0.0
+
+  test_once: true
+  log_interval: 100
+
+# === [重要检查] 代码层面确认 ===
+# 请务必确认你的 datasets.py 中，训练集的 transform 包含以下操作：
+# transforms.RandomResizedCrop(224)  <--- 核心！如果这里用成了 Resize+CenterCrop，分数永远只有 68%
+# transforms.RandomHorizontalFlip()

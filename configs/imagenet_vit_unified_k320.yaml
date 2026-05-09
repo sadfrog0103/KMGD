@@ -1,0 +1,83 @@
+# configs/imagenet_vit_unified_k320.yaml
+
+# === 实验基础信息 ===
+experiment_name: "vit_tiny_r18_imagenet_unified_gauss_k320"
+mode: "distill"
+seed: 42
+device: "cuda:0"
+output_dir: "./logs"
+
+# === 数据配置 ===
+data:
+  dataset: "imagenet"    # [修改] 切换为 ImageNet
+  root: "./data"
+  img_size: 224          # [修改] 标准分辨率
+  
+  # [要求] Batch Size = 256
+  batch_size: 256
+  
+  num_workers: 8         # Windows下建议设为 4 或 2
+  pin_memory: true
+  
+  # [关键] ImageNet 不从训练集切分验证集
+  val_split: 0.0
+  
+  label_noise: 0.0
+  label_smoothing: 0.1   # ViT 标配
+
+# === 模型配置 ===
+model:
+  student: "vit_tiny"    # 保持 ViT-Tiny
+  teacher: "resnet18"    # 保持 ResNet18
+
+# === 蒸馏配置 (Unified KD) ===
+distillation:
+  type: "offline"
+  method: "unified_gauss" # 保持高斯原型方法
+  
+  # [要求] 教师权重路径
+  teacher_weights: "D:/kd_research/selected logs/imagenet/r18_imagenet_baseline_20260131_133147/model_best.pth"
+  
+  # [要求] 原型数量 K = 320
+  proto_k: 320
+  
+  proj_dim: 128
+  
+  # 统一蒸馏超参 (保持原配置比例)
+  sim_tau: 4.0
+  learnable_tau: false
+  
+  kd_lambda: 0.3
+  sim_lambda: 0.5
+  ortho_lambda: 0.001
+  balance_lambda: 0.0002
+  T: 4.0
+
+# === 训练策略 (Solver) ===
+solver:
+  # ImageNet 上 ViT 建议跑 300 epochs (240 也可以，但 300 更稳)
+  epochs: 240
+  
+  # [优化器] ImageNet Batch256 下，lr 建议 5e-4 (原配置的 4e-3 是针对 CIFAR 的)
+  optimizer: "adamw"
+  lr: 0.0005
+  weight_decay: 0.05     # ImageNet 常用 WD
+  
+  scheduler: "cosine"
+  warmup_epochs: 20      # ImageNet 需要更长的预热
+  
+  amp: true              # 混合精度
+  
+  # 强增强
+  mixup: 0.8
+  cutmix: 1.0
+  mixup_prob: 1.0
+  
+  early_stop:
+    patience: 30
+    min_epochs: 200
+    monitor: "val_acc"
+    delta: 0.0
+
+  test_once: true
+  log_interval: 100

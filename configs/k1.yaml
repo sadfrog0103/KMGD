@@ -1,0 +1,49 @@
+data:
+  batch_size: 256
+  dataset: cifar100
+  img_size: 32
+  label_noise: 0.0
+  label_smoothing: 0.25
+  num_workers: 0
+  pin_memory: true
+  root: ./data
+  val_split: 0.1
+device: cuda:0
+distillation:
+  T: 4.0
+  attn_dim: 128
+  balance_lambda: 0.0002
+  init_tau: 1.0
+  kd_lambda: 0.3
+  learnable_tau: true
+  method: unified_gauss
+  ortho_lambda: 0.001
+  proj_dim: 256
+  proto_k: 8
+  sim_lambda: 0.5
+  teacher_weights: D:/kd_research/teacher_model/r18_c100_2.pth
+  type: offline
+experiment_name: r18_c100_unified_k7
+mode: distill
+model:
+  student: resnet18
+  teacher: resnet18
+output_dir: ./logs
+seed: 42
+solver:
+  amp: true
+  early_stop:
+    delta: 0.0
+    min_epochs: 60
+    monitor: val_acc
+    patience: 50
+  epochs: 200
+  log_interval: 100
+  lr: 0.2
+  mixup: 0.0
+  momentum: 0.9
+  optimizer: sgd
+  scheduler: cosine
+  test_once: true
+  warmup_epochs: 20
+  weight_decay: 0.0005
